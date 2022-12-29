@@ -2,11 +2,11 @@ use core::{
     cell::UnsafeCell,
     cmp,
     fmt::{self, Debug, Display},
-    sync::atomic::{AtomicIsize, Ordering},
+    sync::atomic::Ordering,
 };
 
 use crate::{
-    borrow::{is_reading, is_writing, AtomicBorrow, AtomicBorrowMut},
+    borrow::{is_borrowed, is_writing, AtomicBorrow, AtomicBorrowMut, Lock},
     refs::{Ref, RefMut},
 };
 
@@ -18,7 +18,7 @@ use crate::{
 /// [`AtomicCell<T>`] implements [`Send`] if `T: Send`.
 /// [`AtomicCell<T>`] implements [`Sync`] if `T: Send + Sync`.
 pub struct AtomicCell<T: ?Sized> {
-    lock: AtomicIsize,
+    lock: Lock,
     value: UnsafeCell<T>,
 }
 
@@ -46,7 +46,7 @@ impl<T> AtomicCell<T> {
     pub const fn new(value: T) -> Self {
         AtomicCell {
             value: UnsafeCell::new(value),
-            lock: AtomicIsize::new(0),
+            lock: Lock::new(0),
         }
     }
 
@@ -397,7 +397,7 @@ where
     ///
     /// # Safety
     ///
-    /// Unlike [borrow], this method is unsafe because it does not return a Ref,
+    /// Unlike [borrow], this method is unsafe because it does not return a [`Ref`],
     /// thus leaving the borrow flag untouched.
     ///
     /// Mutably borrowing the [`AtomicCell`] while the reference returned by this method is alive is undefined behaviour.
@@ -438,8 +438,8 @@ where
     ///
     /// # Safety
     ///
-    /// Unlike [borrow_mut], this method is unsafe because it does not return a Ref,
-    /// thus leaving the borrow flag untouched.
+    /// Unlike [borrow_mut], this method is unsafe because it does not return a [`Ref`],
+    /// and leaves the borrow flag untouched.
     ///
     /// Borrowing the [`AtomicCell`] while the reference returned by this method is alive is undefined behaviour.
     ///
@@ -461,7 +461,7 @@ where
     #[inline]
     pub unsafe fn try_borrow_unguarded_mut(&self) -> Option<&mut T> {
         let val = self.lock.load(Ordering::Relaxed);
-        if is_reading(val) || is_writing(val) {
+        if is_borrowed(val) {
             None
         } else {
             // SAFETY: We check that nobody is actively reading or writing now, but it is
