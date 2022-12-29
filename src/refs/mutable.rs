@@ -183,6 +183,37 @@ where
         RefMut { value: r, borrow }
     }
 
+    /// Splits wrapper into two parts.
+    /// One is reference to the value
+    /// and the other is [`AtomicBorrowMut`] that guards it from being borrowed.
+    ///
+    /// # Safety
+    ///
+    /// User must ensure reference is not used after [`AtomicBorrowMut`] is dropped.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atomicell::{AtomicCell, RefMut};
+    ///
+    /// let cell = AtomicCell::new(42);
+    /// let r: RefMut<'_, i32> = cell.borrow_mut();
+    ///
+    /// unsafe {
+    ///     let (r, borrow) = RefMut::into_split(r);
+    ///     assert_eq!(*r, 42);
+    ///
+    ///     assert!(cell.try_borrow().is_none(), "Must not be able to borrow mutably yet");
+    ///     assert!(cell.try_borrow_mut().is_none(), "Must not be able to borrow mutably yet");
+    ///     drop(borrow);
+    ///     assert!(cell.try_borrow_mut().is_some(), "Must be able to borrow mutably now");
+    /// }
+    /// ```
+    #[inline]
+    pub unsafe fn into_split(r: RefMut<'a, T>) -> (&'a mut T, AtomicBorrowMut<'a>) {
+        (r.value, r.borrow)
+    }
+
     /// Makes a new [`RefMut`] for a component of the borrowed data.
     ///
     /// The [`AtomicCell`] is already mutably borrowed, so this cannot fail.

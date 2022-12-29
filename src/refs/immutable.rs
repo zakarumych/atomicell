@@ -174,6 +174,37 @@ where
         Ref { value: r, borrow }
     }
 
+    /// Splits wrapper into two parts.
+    /// One is reference to the value
+    /// and the other is [`AtomicBorrow`] that guards it from being borrowed mutably.
+    ///
+    /// # Safety
+    ///
+    /// User must ensure reference is not used after [`AtomicBorrow`] is dropped.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atomicell::{AtomicCell, Ref};
+    ///
+    /// let cell = AtomicCell::new(42);
+    /// let r: Ref<'_, i32> = cell.borrow();
+    ///
+    /// unsafe {
+    ///     let (r, borrow) = Ref::into_split(r);
+    ///     assert_eq!(*r, 42);
+    ///
+    ///     assert!(cell.try_borrow().is_some(), "Must be able to borrow immutably");
+    ///     assert!(cell.try_borrow_mut().is_none(), "Must not be able to borrow mutably yet");
+    ///     drop(borrow);
+    ///     assert!(cell.try_borrow_mut().is_some(), "Must be able to borrow mutably now");
+    /// }
+    /// ```
+    #[inline]
+    pub unsafe fn into_split(r: Ref<'a, T>) -> (&'a T, AtomicBorrow<'a>) {
+        (r.value, r.borrow)
+    }
+
     /// Makes a new [`Ref`] for a component of the borrowed data.
     ///
     /// The [`AtomicCell`] is already immutably borrowed, so this cannot fail.
