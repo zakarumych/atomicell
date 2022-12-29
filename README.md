@@ -7,5 +7,17 @@
 ![loc](https://img.shields.io/tokei/lines/github/zakarumych/atomicell?style=for-the-badge)
 
 This crate provides `AtomicCell` type - a multi-threaded version of `RefCell` from standard library.
-`AtomicCell` uses atomics to track borrows and thus able guarantee
+`AtomicCell` uses atomics to track borrows and able to guarantee
 absence of mutable aliasing when multiple threads try to borrow concurrently.
+
+Unlike mutexes and spin-locks `AtomicCell` does not have blocking calls.
+Borrows are either succeed immediately or fail.
+
+There are fallible that return optional for borrowing calls - [`AtomicCell::try_borrow`] and [`AtomicCell::try_borrow_mut`].
+
+And panicking version - [`AtomicCell::borrow`] and [`AtomicCell::borrow_mut`].
+
+[`AtomicCell::try_borrow`]: https://docs.rs/atomicell/latest/atomicell/struct.AtomicCell.html#method.try_borrow
+[`AtomicCell::try_borrow_mut`]: https://docs.rs/atomicell/latest/atomicell/struct.AtomicCell.html#method.try_borrow_mut
+[`AtomicCell::borrow`]: https://docs.rs/atomicell/latest/atomicell/struct.AtomicCell.html#method.borrow
+[`AtomicCell::borrow_mut`]: https://docs.rs/atomicell/latest/atomicell/struct.AtomicCell.html#method.borrow_mut
