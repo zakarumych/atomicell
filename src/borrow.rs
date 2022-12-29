@@ -109,6 +109,13 @@ impl<'a> AtomicBorrow<'a> {
         }
     }
 
+    /// Restore previously leaked [`AtomicBorrow`] instance.
+    ///
+    /// This method should be called only after forgetting [`AtomicBorrow`] instance.
+    pub unsafe fn restore_leaked(lock: &'a AtomicIsize) -> Self {
+        AtomicBorrow { lock }
+    }
+
     /// Returns dummy atomic borrow that doesn't actually locks anything.
     /// It is used within [`Ref::new`] method that take external reference.
     ///
@@ -194,6 +201,13 @@ impl<'a> AtomicBorrowMut<'a> {
         } else {
             None
         }
+    }
+
+    /// Restore previously leaked [`AtomicBorrowMut`] instance.
+    ///
+    /// This method should be called only after forgetting [`AtomicBorrowMut`] instance.
+    pub unsafe fn restore_leaked(lock: &'a AtomicIsize) -> Self {
+        AtomicBorrowMut { lock }
     }
 
     /// Returns dummy atomic borrow that doesn't actually locks anything.
