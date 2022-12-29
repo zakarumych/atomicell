@@ -15,8 +15,8 @@ use crate::{
 /// The main difference is that this type uses atomic operations for borrowing.
 /// Thus allowing to use it in multi-threaded environment.
 ///
-/// `AtomicCell<T>` implements `Send` if `T: Send`.
-/// `AtomicCell<T>` implements `Sync` if `T: Send + Sync`.
+/// [`AtomicCell<T>`] implements [`Send`] if `T: Send`.
+/// [`AtomicCell<T>`] implements [`Sync`] if `T: Send + Sync`.
 pub struct AtomicCell<T: ?Sized> {
     lock: AtomicIsize,
     value: UnsafeCell<T>,
@@ -68,6 +68,7 @@ impl<T> AtomicCell<T> {
     }
 
     /// Replaces the wrapped value with a new one, returning the old value, without deinitializing either one.
+    ///
     /// This function corresponds to [core::mem::replace].
     ///
     /// # Panics
@@ -88,7 +89,9 @@ impl<T> AtomicCell<T> {
         core::mem::replace(&mut *self.borrow_mut(), t)
     }
 
-    /// Replaces the wrapped value with a new one computed from f, returning the old value, without deinitializing either one.
+    /// Replaces the wrapped value with a new one computed from f,
+    /// returning the old value,
+    /// without deinitializing either one.
     ///
     /// # Panics
     ///
@@ -114,7 +117,9 @@ impl<T> AtomicCell<T> {
         }
     }
 
-    /// Swaps the wrapped value of self with the wrapped value of other, without deinitializing either one.
+    /// Swaps the wrapped value of self with the wrapped value of other,
+    /// without deinitializing either one.
+    ///
     /// This function corresponds to [core::mem::swap].
     ///
     /// # Panics
@@ -149,9 +154,12 @@ impl<T> AtomicCell<T>
 where
     T: ?Sized,
 {
-    /// Immutably borrows the wrapped value, returning [`None`] if the value is currently mutably borrowed.
+    /// Immutably borrows the wrapped value,
+    /// returning [`None`] if the value is currently mutably borrowed.
     ///
-    /// The borrow lasts until the returned [`Ref`] exits scope. Multiple immutable borrows can be taken out at the same time.
+    /// The borrow lasts until the returned [`Ref`], all [`Ref`]s derived from it and all its clones exit scope.
+    ///
+    /// Multiple immutable borrows can be taken out at the same time.
     ///
     /// This is the non-panicking variant of borrow.
     ///
@@ -190,7 +198,9 @@ where
 
     /// Immutably borrows the wrapped value.
     ///
-    /// The borrow lasts until the returned [`Ref`] exits scope. Multiple immutable borrows can be taken out at the same time.
+    /// The borrow lasts until the returned [`Ref`], all [`Ref`]s derived from it and all its clones exit scope.
+    ///
+    /// Multiple immutable borrows can be taken out at the same time.
     ///
     /// # Panics
     ///
@@ -234,7 +244,8 @@ where
 
     /// Mutably borrows the wrapped value, returning an error if the value is currently borrowed.
     ///
-    /// The borrow lasts until the returned RefMut or all RefMuts derived from it exit scope.
+    /// The borrow lasts until the returned [`RefMut`] or all [`RefMut`]s derived from it exit scope.
+    ///
     /// The value cannot be borrowed while this borrow is active.
     ///
     /// This is the non-panicking variant of borrow_mut.
@@ -272,6 +283,7 @@ where
     /// Mutably borrows the wrapped value.
     ///
     /// The borrow lasts until the returned [`RefMut`] or all [`RefMut`]s derived from it exit scope.
+    ///
     /// The value cannot be borrowed while this borrow is active.
     ///
     /// # Panics
@@ -334,10 +346,13 @@ where
     /// This call borrows [`AtomicCell`] mutably (at compile-time) so there is no need for dynamic checks.
     ///
     /// However be cautious: this method expects self to be mutable,
-    /// which is generally not the case when using a [`AtomicCell`]. Take a look at the borrow_mut method instead if self isn’t mutable.
+    /// which is generally not the case when using a [`AtomicCell`].
+    /// Take a look at the [borrow_mut] method instead if self isn’t mutable.
     ///
     /// Also, please be aware that this method is only for special circumstances
     /// and is usually not what you want. In case of doubt, use borrow_mut instead.
+    ///
+    /// [borrow_mut]: #method.borrow_mut
     ///
     /// # Examples
     ///
@@ -382,12 +397,12 @@ where
     ///
     /// # Safety
     ///
-    /// Unlike [`AtomicCell::borrow`], this method is unsafe because it does not return a Ref,
+    /// Unlike [borrow], this method is unsafe because it does not return a Ref,
     /// thus leaving the borrow flag untouched.
     ///
     /// Mutably borrowing the [`AtomicCell`] while the reference returned by this method is alive is undefined behaviour.
     ///
-    /// [`AtomicCell::borrow`]: struct.AtomicCell.html#method.borrow
+    /// [borrow]: #method.borrow
     ///
     /// # Examples
     ///
@@ -423,12 +438,12 @@ where
     ///
     /// # Safety
     ///
-    /// Unlike [`AtomicCell::borrow_mut`], this method is unsafe because it does not return a Ref,
+    /// Unlike [borrow_mut], this method is unsafe because it does not return a Ref,
     /// thus leaving the borrow flag untouched.
     ///
     /// Borrowing the [`AtomicCell`] while the reference returned by this method is alive is undefined behaviour.
     ///
-    /// [`AtomicCell::borrow_mut`]: struct.AtomicCell.html#method.borrow_mut
+    /// [borrow_mut]: #method.borrow_mut
     ///
     /// # Examples
     ///
@@ -461,7 +476,7 @@ impl<T> AtomicCell<T>
 where
     T: Default,
 {
-    /// Takes the wrapped value, leaving Default::default() in its place.
+    /// Takes the wrapped value, leaving [`Default::default()`] in its place.
     ///
     /// # Panics
     ///

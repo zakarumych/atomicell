@@ -1,18 +1,18 @@
-//! This module contains types to implement atomic borrowing.
+//! This module contains types that can be used to implement atomic borrowing.
 //!
-//! [`AtomicBorrow`] is used to borrow immutably.
+//! [`AtomicBorrow`] is used to borrow immutably.\
 //! [`AtomicBorrow::try_new`] locks an atomic in such a way
 //! that it can be locked immutably again but not mutably.
-//! If fails if already borrowed mutably.
+//! It fails if already borrowed mutably.
 //!
-//! [`AtomicBorrowMut`] is used to borrow mutably.
+//! [`AtomicBorrowMut`] is used to borrow mutably.\
 //! [`AtomicBorrowMut::try_new`] locks an atomic in such a way
 //! that it cannot be locked again.
-//! If fails if already borrowed.
+//! It fails if already borrowed.
 //!
-//! Both types use [`AtomicIsize`] as a locking atomic.
-//! Where `0` means "not borrowed",
-//! immutable borrows are represented by positive values
+//! Both types use [`AtomicIsize`] as a locking atomic.\
+//! Where `0` means "not borrowed",\
+//! immutable borrows are represented by positive values\
 //! and mutable borrows are represented by negative values.
 //!
 //! [`AtomicBorrow::try_new`]: struct.AtomicBorrow.html#method.try_new
@@ -31,19 +31,38 @@ fn is_dummy(lock: &AtomicIsize) -> bool {
     core::ptr::eq(lock, &DUMMY_LOCK)
 }
 
-/// Returns true if lock is locked for reads or writes.
+/// Returns true if lock with specified lock value is locked for reads.
 #[inline(always)]
 pub fn is_reading(v: isize) -> bool {
     v > 0
 }
 
-/// Returns true if lock is locked for writes.
+/// Returns true if lock with specified lock value is locked for writes.
 #[inline(always)]
 pub fn is_writing(v: isize) -> bool {
     v < 0
 }
 
+/// Returns true if there are too many read refs.
+///
+/// If `is_reading` would return `false` for provided argument,
+/// this function result unspecified.
+#[inline(always)]
+pub fn check_read_refs_count(v: isize) -> bool {
+    v & REF_LIMIT_FLAG == REF_LIMIT_FLAG
+}
+
+/// Returns true if there are too many write refs.
+///
+/// If `is_writing` would return `false` for provided argument,
+/// this function result unspecified.
+#[inline(always)]
+pub fn check_write_refs_count(v: isize) -> bool {
+    v & REF_LIMIT_FLAG == 0
+}
+
 /// Encapsulates shared borrowing state.
+///
 /// An instance of this type guarantees that [`AtomicBorrowMut`] cannot be constructed for the same lock.
 #[repr(transparent)]
 pub struct AtomicBorrow<'a> {
@@ -52,25 +71,28 @@ pub struct AtomicBorrow<'a> {
 
 impl<'a> AtomicBorrow<'a> {
     /// Attempts to borrow lock immutably.
+    ///
+    /// Fails if `AtomicIsize` contains a value for which `is_writing` returns true.
+    ///
+    /// On success `AtomicIsize` contains value for which `is_reading` returns true.
     #[inline]
     pub fn try_new(lock: &'a AtomicIsize) -> Option<Self> {
         loop {
             // Get original value.
             let val = lock.load(Ordering::Relaxed);
 
-            // This cannot overflow because the value is kept below `REF_LIMIT_FLAG`.
-            if !is_reading(val + 1) {
+            if is_writing(val) {
                 // Locked for writing.
                 return None;
             }
 
-            // Check that counter won't overflow into writing state.
+            // Ensure that counter won't overflow into writing state.
             // `REF_LIMIT_FLAG` allows plenty clones to be created.
             // In fact, without `forget`ing the `Ref` instances, the counter cannot overflow
             // because this much `Ref` instances won't fit into address space.
             // `REF_LIMIT_FLAG` value allows `REF_LIMIT_FLAG - 1` concurrent attempts to borrow immutably.
             // Which assumed to never happen as there can't be that much threads.
-            if val & REF_LIMIT_FLAG != 0 {
+            if check_read_refs_count(val) {
                 too_many_refs();
             }
 
@@ -86,7 +108,7 @@ impl<'a> AtomicBorrow<'a> {
     }
 
     /// Returns dummy atomic borrow that doesn't actually locks anything.
-    /// It is used within [`Ref::new`] method that wrap take external reference.
+    /// It is used within [`Ref::new`] method that take external reference.
     ///
     /// [`Ref::new`]: struct.Ref.html#method.new
     #[inline(always)]
@@ -114,7 +136,7 @@ impl<'a> AtomicBorrow<'a> {
         // because this much `AtomicBorrow` instances won't fit into address space.
         // And there can be `REF_LIMIT_FLAG - 1` attempts to create excessive `AtomicBorrow`s
         // that assumed to never happen as there can't be that much threads.
-        if old & REF_LIMIT_FLAG == REF_LIMIT_FLAG {
+        if check_read_refs_count(old) {
             // Forbid creating this much `AtomicBorrow` instances.
             // Balance lock increment with decrement.
             self.lock.fetch_sub(1, Ordering::Relaxed);
@@ -140,8 +162,9 @@ impl<'a> Drop for AtomicBorrow<'a> {
     }
 }
 
-/// Encapsulates exclusive borrowing of the `AtomicCell`.
-/// An instance of this type guarantees that `AtomicBorrow` cannot be constructed for the same lock.
+/// Encapsulates exclusive borrowing state.
+///
+/// An instance of this type guarantees that neither [`AtomicBorrowMut`], nor [`AtomicBorrow`] cannot be constructed for the same lock.
 #[repr(transparent)]
 pub struct AtomicBorrowMut<'a> {
     lock: &'a AtomicIsize,
@@ -166,7 +189,7 @@ impl<'a> AtomicBorrowMut<'a> {
     }
 
     /// Returns dummy atomic borrow that doesn't actually locks anything.
-    /// It is used within [`RefMut::new`] method that wrap take external reference.
+    /// It is used within [`RefMut::new`] method that take external reference.
     ///
     /// [`RefMut::new`]: struct.RefMut.html#method.new
     #[inline(always)]
@@ -196,7 +219,7 @@ impl<'a> AtomicBorrowMut<'a> {
         // because this much `AtomicBorrowMut` instances won't fit into address space.
         // And there can be `REF_LIMIT_FLAG - 1` attempts to create excessive `AtomicBorrowMut`s
         // that assumed to never happen as there can't be that much threads.
-        if old & REF_LIMIT_FLAG == 0 {
+        if check_write_refs_count(old) {
             // Forbid creating this much `AtomicBorrowMut` instances.
             // Balance lock decrement with increment.
             self.lock.fetch_add(1, Ordering::Relaxed);
