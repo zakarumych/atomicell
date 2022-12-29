@@ -1,0 +1,11 @@
+[package]
+name = "atomicell"
+version = "0.1.0"
+edition = "2021"
+description = "Multi-threaded RefCell on atomics"
+keywords = ["atomic", "cell", "refcell"]
+categories = ["rust-patterns", "concurrency", "data-structures"]
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/atomicell/latest/atomicell/"
+homepage = "https://github.com/zakarumych/atomicell"
+repository = "https://github.com/zakarumych/atomicell"
