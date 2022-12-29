@@ -77,6 +77,8 @@ impl<'a> AtomicBorrow<'a> {
     /// On success `AtomicIsize` contains value for which `is_reading` returns true.
     #[inline]
     pub fn try_new(lock: &'a AtomicIsize) -> Option<Self> {
+        debug_assert!(!is_dummy(lock), "dummy lock cannot be used from outside");
+
         loop {
             // Get original value.
             let val = lock.load(Ordering::Relaxed);
@@ -154,6 +156,10 @@ impl<'a> AtomicBorrow<'a> {
 impl<'a> Drop for AtomicBorrow<'a> {
     #[inline(always)]
     fn drop(&mut self) {
+        if is_dummy(self.lock) {
+            return;
+        }
+
         debug_assert!(is_dummy(self.lock) || is_reading(self.lock.load(Ordering::Relaxed)));
 
         // Reset the lock counter. `Release` semantics is required
@@ -174,6 +180,8 @@ impl<'a> AtomicBorrowMut<'a> {
     /// Attempts to borrow lock mutably.
     #[inline]
     pub fn try_new(lock: &'a AtomicIsize) -> Option<Self> {
+        debug_assert!(!is_dummy(lock), "dummy lock cannot be used from outside");
+
         // `Acquire` semantics syncs this operation with `Release` semantics in `Ref::drop` and `RefMut::drop`.
         // Lock counter `0` ensures that no other borrows exist.
         let ok = lock
@@ -237,6 +245,10 @@ impl<'a> AtomicBorrowMut<'a> {
 impl<'a> Drop for AtomicBorrowMut<'a> {
     #[inline(always)]
     fn drop(&mut self) {
+        if is_dummy(self.lock) {
+            return;
+        }
+
         debug_assert!(is_dummy(self.lock) || is_writing(self.lock.load(Ordering::Relaxed)));
 
         // Increment lock counter. `Release` semantics is required
