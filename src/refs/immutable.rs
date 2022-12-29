@@ -56,7 +56,7 @@ where
 
 impl<'a, T> Debug for Ref<'a, T>
 where
-    T: Debug,
+    T: Debug + ?Sized,
 {
     #[inline(always)]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -66,7 +66,7 @@ where
 
 impl<'a, T> Display for Ref<'a, T>
 where
-    T: Display,
+    T: Display + ?Sized,
 {
     #[inline(always)]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -76,7 +76,7 @@ where
 
 impl<'a, T, U> PartialEq<U> for Ref<'a, T>
 where
-    T: PartialEq<U>,
+    T: PartialEq<U> + ?Sized,
 {
     #[inline(always)]
     fn eq(&self, other: &U) -> bool {
@@ -86,7 +86,7 @@ where
 
 impl<'a, T, U> PartialOrd<U> for Ref<'a, T>
 where
-    T: PartialOrd<U>,
+    T: PartialOrd<U> + ?Sized,
 {
     #[inline(always)]
     fn partial_cmp(&self, other: &U) -> Option<Ordering> {
@@ -96,7 +96,7 @@ where
 
 impl<'a, T> Hash for Ref<'a, T>
 where
-    T: Hash,
+    T: Hash + ?Sized,
 {
     #[inline(always)]
     fn hash<H>(&self, state: &mut H)
@@ -116,7 +116,7 @@ impl<'a, T> Borrow<T> for Ref<'a, T> {
 
 impl<'a, T, U> AsRef<U> for Ref<'a, T>
 where
-    T: AsRef<U>,
+    T: AsRef<U> + ?Sized,
 {
     #[inline(always)]
     fn as_ref(&self) -> &U {

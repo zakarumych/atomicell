@@ -57,7 +57,7 @@ where
 
 impl<'a, T> Display for RefMut<'a, T>
 where
-    T: Display,
+    T: Display + ?Sized,
 {
     #[inline(always)]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -67,7 +67,7 @@ where
 
 impl<'a, T, U> PartialEq<U> for RefMut<'a, T>
 where
-    T: PartialEq<U>,
+    T: PartialEq<U> + ?Sized,
 {
     #[inline(always)]
     fn eq(&self, other: &U) -> bool {
@@ -77,7 +77,7 @@ where
 
 impl<'a, T, U> PartialOrd<U> for RefMut<'a, T>
 where
-    T: PartialOrd<U>,
+    T: PartialOrd<U> + ?Sized,
 {
     #[inline(always)]
     fn partial_cmp(&self, other: &U) -> Option<Ordering> {
@@ -87,7 +87,7 @@ where
 
 impl<'a, T> Hash for RefMut<'a, T>
 where
-    T: Hash,
+    T: Hash + ?Sized,
 {
     #[inline(always)]
     fn hash<H>(&self, state: &mut H)
@@ -98,14 +98,20 @@ where
     }
 }
 
-impl<'a, T> Borrow<T> for RefMut<'a, T> {
+impl<'a, T> Borrow<T> for RefMut<'a, T>
+where
+    T: ?Sized,
+{
     #[inline(always)]
     fn borrow(&self) -> &T {
         &self.value
     }
 }
 
-impl<'a, T> BorrowMut<T> for RefMut<'a, T> {
+impl<'a, T> BorrowMut<T> for RefMut<'a, T>
+where
+    T: ?Sized,
+{
     #[inline(always)]
     fn borrow_mut(&mut self) -> &mut T {
         &mut self.value
@@ -114,7 +120,7 @@ impl<'a, T> BorrowMut<T> for RefMut<'a, T> {
 
 impl<'a, T, U> AsRef<U> for RefMut<'a, T>
 where
-    T: AsRef<U>,
+    T: AsRef<U> + ?Sized,
 {
     #[inline(always)]
     fn as_ref(&self) -> &U {
@@ -124,7 +130,7 @@ where
 
 impl<'a, T, U> AsMut<U> for RefMut<'a, T>
 where
-    T: AsMut<U>,
+    T: AsMut<U> + ?Sized,
 {
     #[inline(always)]
     fn as_mut(&mut self) -> &mut U {
