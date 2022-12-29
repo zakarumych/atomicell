@@ -6,7 +6,7 @@ use core::{
 };
 
 use crate::{
-    borrow::{is_borrowed, is_writing, AtomicBorrow, AtomicBorrowMut, Lock},
+    borrow::{is_borrowed, is_writing, new_lock, AtomicBorrow, AtomicBorrowMut, Lock},
     refs::{Ref, RefMut},
 };
 
@@ -46,7 +46,7 @@ impl<T> AtomicCell<T> {
     pub const fn new(value: T) -> Self {
         AtomicCell {
             value: UnsafeCell::new(value),
-            lock: Lock::new(0),
+            lock: new_lock(),
         }
     }
 

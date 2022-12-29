@@ -165,7 +165,7 @@ where
     }
 
     /// Wraps external reference into [`RefMut`].
-    /// And associated it with provided [`AtomicBorrowMut`]
+    /// And associates it with provided [`AtomicBorrowMut`]
     ///
     /// This function is intended to be used by [`AtomicCell`]
     /// or other abstractions that use `AtomicBorrow` for locking.
@@ -176,8 +176,8 @@ where
     ///
     /// ```
     /// use core::sync::atomic::AtomicIsize;
-    /// use atomicell::{borrow::AtomicBorrowMut, RefMut};
-    /// let counter = AtomicIsize::new(0);
+    /// use atomicell::{borrow::{AtomicBorrowMut, new_lock}, RefMut};
+    /// let counter = new_lock();
     /// let borrow = AtomicBorrowMut::try_new(&counter).unwrap();
     ///
     /// let mut value = 42;

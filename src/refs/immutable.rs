@@ -151,7 +151,7 @@ where
     }
 
     /// Wraps external reference into [`Ref`].
-    /// And associated it with provided [`AtomicBorrow`]
+    /// And associates it with provided [`AtomicBorrow`]
     ///
     /// This function is intended to be used by [`AtomicCell`]
     /// or other abstractions that use `AtomicBorrow` for locking.
@@ -162,8 +162,8 @@ where
     ///
     /// ```
     /// use core::sync::atomic::AtomicIsize;
-    /// use atomicell::{borrow::AtomicBorrow, Ref};
-    /// let counter = AtomicIsize::new(0);
+    /// use atomicell::{borrow::{AtomicBorrow, new_lock}, Ref};
+    /// let counter = new_lock();
     /// let borrow = AtomicBorrow::try_new(&counter).unwrap();
     ///
     /// let r = Ref::with_borrow(&42, borrow);

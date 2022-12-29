@@ -24,11 +24,17 @@ use core::sync::atomic::{AtomicIsize, Ordering};
 /// Lock type used by [`AtomicCell`].
 pub type Lock = AtomicIsize;
 
+/// Create atomic borrow lock.
+/// Initially not borrowed.
+pub const fn new_lock() -> Lock {
+    Lock::new(0)
+}
+
 /// Limit on the count of concurrent [`Ref`] instances for the same [`AtomicCell`].
 const REF_LIMIT_FLAG: isize = 1 + (isize::MAX >> 1);
 
 /// Dummy lock value that is used to create [`Ref`] and [`RefMut`] from references instead of [`AtomicCell`].
-pub(crate) static DUMMY_LOCK: Lock = Lock::new(0);
+pub(crate) static DUMMY_LOCK: Lock = new_lock();
 
 fn is_dummy(lock: &Lock) -> bool {
     core::ptr::eq(lock, &DUMMY_LOCK)
