@@ -1,6 +1,6 @@
 [package]
 name = "atomicell"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2021"
 description = "Multi-threaded RefCell on atomics"
 keywords = ["atomic", "cell", "refcell"]

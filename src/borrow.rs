@@ -104,7 +104,9 @@ pub fn try_borrow(lock: &Lock) -> bool {
             .compare_exchange_weak(val, val + 1, Ordering::Acquire, Ordering::Relaxed)
             .is_ok();
 
-        return ok;
+        if ok {
+            return true;
+        }
     }
 }
 
