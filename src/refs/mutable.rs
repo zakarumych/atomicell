@@ -347,7 +347,7 @@ where
     /// Convert into a reference to the underlying data.
     ///
     /// The underlying [`AtomicCell`] can never be mutably borrowed from again
-    /// and will always appear already immutably borrowed.
+    /// and will always appear already mutably borrowed.
     /// It is not a good idea to leak more than a constant number of references.
     /// The [`AtomicCell`] can be immutably borrowed again if only a smaller number of leaks have occurred in total.
     ///
