@@ -3,7 +3,9 @@ use core::{
     cmp::Ordering,
     fmt::{self, Debug, Display},
     hash::{Hash, Hasher},
+    marker::PhantomData,
     ops::{Deref, DerefMut, RangeBounds},
+    ptr::NonNull,
 };
 
 use crate::borrow::AtomicBorrowMut;
@@ -19,9 +21,15 @@ use crate::borrow::AtomicBorrowMut;
 /// [`AtomicCell`]: struct.AtomicCell.html
 /// [`&T`]: https://doc.rust-lang.org/core/primitive.reference.html
 pub struct RefMut<'a, T: ?Sized> {
-    value: &'a mut T,
+    value: NonNull<T>,
     borrow: AtomicBorrowMut<'a>,
+    /// Makes [`RefMut`] invariant over T so that we can soundly allow mutation.
+    _invariant: PhantomData<&'a mut T>,
 }
+
+// SAFETY: `Ref<'_, T> acts as a reference. `AtomicBorrowR` is a reference to an atomic.
+unsafe impl<'b, T: ?Sized + 'b> Sync for RefMut<'b, T> where for<'a> &'a mut T: Sync {}
+unsafe impl<'b, T: ?Sized + 'b> Send for RefMut<'b, T> where for<'a> &'a mut T: Send {}
 
 impl<'a, T> Deref for RefMut<'a, T>
 where
@@ -31,7 +39,8 @@ where
 
     #[inline(always)]
     fn deref(&self) -> &T {
-        &self.value
+        // SAFETY: We hold an exclusive lock on the pointer.
+        unsafe { self.value.as_ref() }
     }
 }
 
@@ -41,7 +50,8 @@ where
 {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut T {
-        &mut self.value
+        // SAFETY: We hold an exclusive lock on the pointer.
+        unsafe { self.value.as_mut() }
     }
 }
 
@@ -51,7 +61,7 @@ where
 {
     #[inline(always)]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        Debug::fmt(self.value, f)
+        <T as Debug>::fmt(self, f)
     }
 }
 
@@ -61,7 +71,7 @@ where
 {
     #[inline(always)]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        Display::fmt(self.value, f)
+        <T as Display>::fmt(self, f)
     }
 }
 
@@ -71,7 +81,7 @@ where
 {
     #[inline(always)]
     fn eq(&self, other: &U) -> bool {
-        PartialEq::eq(&*self.value, other)
+        <T as PartialEq<U>>::eq(self, other)
     }
 }
 
@@ -81,7 +91,7 @@ where
 {
     #[inline(always)]
     fn partial_cmp(&self, other: &U) -> Option<Ordering> {
-        PartialOrd::partial_cmp(&*self.value, other)
+        <T as PartialOrd<U>>::partial_cmp(self, other)
     }
 }
 
@@ -94,7 +104,7 @@ where
     where
         H: Hasher,
     {
-        Hash::hash(self.value, state)
+        <T as Hash>::hash(self, state)
     }
 }
 
@@ -104,7 +114,7 @@ where
 {
     #[inline(always)]
     fn borrow(&self) -> &T {
-        &self.value
+        self
     }
 }
 
@@ -114,7 +124,7 @@ where
 {
     #[inline(always)]
     fn borrow_mut(&mut self) -> &mut T {
-        &mut self.value
+        self
     }
 }
 
@@ -124,7 +134,7 @@ where
 {
     #[inline(always)]
     fn as_ref(&self) -> &U {
-        self.value.as_ref()
+        <T as AsRef<U>>::as_ref(self)
     }
 }
 
@@ -134,7 +144,7 @@ where
 {
     #[inline(always)]
     fn as_mut(&mut self) -> &mut U {
-        self.value.as_mut()
+        <T as AsMut<U>>::as_mut(self)
     }
 }
 
@@ -159,8 +169,9 @@ where
     #[inline]
     pub fn new(r: &'a mut T) -> Self {
         RefMut {
-            value: r,
+            value: NonNull::from(r),
             borrow: AtomicBorrowMut::dummy(),
+            _invariant: PhantomData,
         }
     }
 
@@ -186,16 +197,25 @@ where
     /// ```
     #[inline]
     pub fn with_borrow(r: &'a mut T, borrow: AtomicBorrowMut<'a>) -> Self {
-        RefMut { value: r, borrow }
+        RefMut {
+            value: NonNull::from(r),
+            borrow,
+            _invariant: PhantomData,
+        }
     }
 
-    /// Splits wrapper into two parts.
-    /// One is reference to the value
-    /// and the other is [`AtomicBorrowMut`] that guards it from being borrowed.
+    /// Splits wrapper into two parts. One is reference to the value and the other is
+    /// [`AtomicBorrowMut`] that guards it from being borrowed.
     ///
     /// # Safety
     ///
-    /// User must ensure reference is not used after [`AtomicBorrowMut`] is dropped.
+    /// User must ensure [`NonNull`] is not dereferenced after [`AtomicBorrowMut`] is dropped.
+    /// 
+    /// You must also treat the [`NonNull`] as invariant over `T`. This means that any custom
+    /// wrapper types you make around the [`NonNull<T>`] must also be invariant over `T`. This can
+    /// be done by adding a [`PhantomData<*mut T>`] field to the struct.
+    /// 
+    /// See the source definition of [`RefMut`] for an example. 
     ///
     /// # Examples
     ///
@@ -207,7 +227,7 @@ where
     ///
     /// unsafe {
     ///     let (r, borrow) = RefMut::into_split(r);
-    ///     assert_eq!(*r, 42);
+    ///     assert_eq!(*r.as_ref(), 42);
     ///
     ///     assert!(cell.try_borrow().is_none(), "Must not be able to borrow mutably yet");
     ///     assert!(cell.try_borrow_mut().is_none(), "Must not be able to borrow mutably yet");
@@ -216,7 +236,7 @@ where
     /// }
     /// ```
     #[inline]
-    pub unsafe fn into_split(r: RefMut<'a, T>) -> (&'a mut T, AtomicBorrowMut<'a>) {
+    pub fn into_split(r: RefMut<'a, T>) -> (NonNull<T>, AtomicBorrowMut<'a>) {
         (r.value, r.borrow)
     }
 
@@ -239,14 +259,15 @@ where
     /// let b2: RefMut<u32> = RefMut::map(b1, |t| &mut t.0);
     /// assert_eq!(*b2, 5)
     #[inline]
-    pub fn map<F, U>(r: RefMut<'a, T>, f: F) -> RefMut<'a, U>
+    pub fn map<F, U>(mut r: RefMut<'a, T>, f: F) -> RefMut<'a, U>
     where
         F: FnOnce(&mut T) -> &mut U,
         U: ?Sized,
     {
         RefMut {
-            value: f(r.value),
+            value: NonNull::from(f(&mut *r)),
             borrow: r.borrow,
+            _invariant: PhantomData,
         }
     }
 
@@ -283,19 +304,24 @@ where
         F: FnOnce(&mut T) -> Option<&mut U>,
     {
         // FIXME(nll-rfc#40): fix borrow-check
-        let RefMut { value, borrow } = r;
-        let value = value as *mut T;
+        let RefMut { value, borrow, .. } = r;
+        let _ptr = value.as_ptr();
         // SAFETY: function holds onto an exclusive reference for the duration
         // of its call through `r`, and the pointer is only de-referenced
         // inside of the function call never allowing the exclusive reference to
         // escape.
-        match f(unsafe { &mut *value }) {
-            Some(value) => Ok(RefMut { value, borrow }),
+        match f(unsafe { &mut *_ptr }) {
+            Some(value) => Ok(RefMut {
+                value: NonNull::from(value),
+                borrow,
+                _invariant: PhantomData,
+            }),
             None => {
                 // SAFETY: same as above.
                 Err(RefMut {
-                    value: unsafe { &mut *value },
+                    value,
                     borrow,
+                    _invariant: PhantomData,
                 })
             }
         }
@@ -321,7 +347,7 @@ where
     /// assert_eq!(*begin, [1, 2]);
     /// assert_eq!(*end, [3, 4]);
     /// ```
-    pub fn map_split<U, V, F>(r: RefMut<'a, T>, f: F) -> (RefMut<'a, U>, RefMut<'a, V>)
+    pub fn map_split<U, V, F>(mut r: RefMut<'a, T>, f: F) -> (RefMut<'a, U>, RefMut<'a, V>)
     where
         U: ?Sized,
         V: ?Sized,
@@ -330,16 +356,19 @@ where
         let borrow_u = r.borrow.clone();
         let borrow_v = r.borrow;
 
-        let (u, v) = f(r.value);
+        // SAFETY: We hold an exclusive lock on the pointer.
+        let (u, v) = f(unsafe { r.value.as_mut() });
 
         (
             RefMut {
-                value: u,
+                value: NonNull::from(u),
                 borrow: borrow_u,
+                _invariant: PhantomData,
             },
             RefMut {
-                value: v,
+                value: NonNull::from(v),
                 borrow: borrow_v,
+                _invariant: PhantomData,
             },
         )
     }
@@ -370,9 +399,10 @@ where
     /// assert!(cell.try_borrow().is_none());
     /// assert!(cell.try_borrow_mut().is_none());
     /// ```
-    pub fn leak(r: RefMut<'a, T>) -> &'a mut T {
+    pub fn leak(mut r: RefMut<'a, T>) -> &'a mut T {
         core::mem::forget(r.borrow);
-        r.value
+        // SAFETY: We hold an exclusive lock on the pointer.
+        unsafe { r.value.as_mut() }
     }
 
     /// Converts reference and returns result wrapped in the [`RefMut`].
@@ -396,14 +426,15 @@ where
     /// assert_eq!(*b2, *"HELLO")
     /// ```
     #[inline]
-    pub fn as_mut<U>(r: RefMut<'a, T>) -> RefMut<'a, U>
+    pub fn as_mut<U>(mut r: RefMut<'a, T>) -> RefMut<'a, U>
     where
         U: ?Sized,
         T: AsMut<U>,
     {
         RefMut {
-            value: r.value.as_mut(),
+            value: NonNull::from(<T as AsMut<U>>::as_mut(&mut *r)),
             borrow: r.borrow,
+            _invariant: PhantomData,
         }
     }
 
@@ -428,13 +459,14 @@ where
     /// assert_eq!(*b2, *"HELLO")
     /// ```
     #[inline]
-    pub fn as_deref_mut(r: RefMut<'a, T>) -> RefMut<'a, T::Target>
+    pub fn as_deref_mut(mut r: RefMut<'a, T>) -> RefMut<'a, T::Target>
     where
         T: DerefMut,
     {
         RefMut {
-            value: &mut *r.value,
+            value: NonNull::from(<T as DerefMut>::deref_mut(&mut *r)),
             borrow: r.borrow,
+            _invariant: PhantomData,
         }
     }
 }
@@ -467,10 +499,11 @@ impl<'a, T> RefMut<'a, Option<T>> {
     /// assert!(c.try_borrow_mut().is_some());
     /// ```
     #[inline]
-    pub fn transpose(r: RefMut<'a, Option<T>>) -> Option<RefMut<'a, T>> {
+    pub fn transpose(mut r: RefMut<'a, Option<T>>) -> Option<RefMut<'a, T>> {
         Some(RefMut {
-            value: r.value.as_mut()?,
+            value: r.as_mut().map(NonNull::from)?,
             borrow: r.borrow,
+            _invariant: PhantomData,
         })
     }
 }
@@ -496,14 +529,17 @@ impl<'a, T> RefMut<'a, [T]> {
     /// assert_eq!(*b2, [3, 4])
     /// ```
     #[inline]
-    pub fn slice<R>(r: RefMut<'a, [T]>, range: R) -> RefMut<'a, [T]>
+    pub fn slice<R>(mut r: RefMut<'a, [T]>, range: R) -> RefMut<'a, [T]>
     where
         R: RangeBounds<usize>,
     {
         let bounds = (range.start_bound().cloned(), range.end_bound().cloned());
+        let slice = &mut *r;
+        let slice = &mut slice[bounds];
         RefMut {
-            value: &mut r.value[bounds],
+            value: NonNull::from(slice),
             borrow: r.borrow,
+            _invariant: PhantomData,
         }
     }
 }
